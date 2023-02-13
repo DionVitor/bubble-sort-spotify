@@ -78,7 +78,7 @@ int main() {
     return 1;
   }
 
-    bubbleSort(data_set, dataset_size);
+  bubbleSort(data_set, dataset_size);
 
   fprintf(output_file, "MES,Avaliacao_Media\n");
   for (int i = 0; i < dataset_size; i++) {
