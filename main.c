@@ -1,81 +1,127 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-#define MAX_LINES 10000
+#define MAX_LINE_LENGTH 70000
+#define NUM_MONTHS 12
 
-struct Review {
-    int Total_thumbsup;
-    char *review;
-};
+typedef struct
+{
+    int day;
+    int month;
+    int year;
+    int hour;
+    int minute;
+    int second;
+    int rating;
+} Record;
 
-void swap(struct Review *a, struct Review *b) {
-    struct Review temp = *a;
-    *a = *b;
-    *b = temp;
+// Função para ler uma linha do arquivo CSV e retornar um registro
+Record read_record(char *line)
+{
+    Record record;
+    sscanf(line, "%d-%d-%d %d:%d:%d,%d", &record.year, &record.month, &record.day,
+           &record.hour, &record.minute, &record.second, &record.rating);
+    return record;
 }
 
-void bubbleSort(FILE *fp_in, FILE *fp_out) {
-    int i, j;
-    char line[1000];
-    int Total_thumbsup;
-    char review[1000];
-    // Read first line
-    fgets(line, sizeof(line), fp_in);
-    sscanf(line, "%d,%[^\n]", &Total_thumbsup, review);
-    struct Review current = {Total_thumbsup, strdup(review)};
-
-    while(!feof(fp_in)) {
-        // Read next line
-        fgets(line, sizeof(line), fp_in);
-        sscanf(line, "%d,%[^\n]", &Total_thumbsup, review);
-        struct Review next = {Total_thumbsup, strdup(review)};
-
-        // Compare current and next line
-        if (current.Total_thumbsup > next.Total_thumbsup) {
-            // Write current line to output file
-            fprintf(fp_out, "%d,%s\n", current.Total_thumbsup, current.review);
-
-            // Update current line
-            current = next;
-
-            // Rewind file pointer to the beginning of the file
-            rewind(fp_in);
-            fgets(line, sizeof(line), fp_in); // skip the first line
+// Função para calcular a avaliação média de um mês
+double average_rating(int month, int year, Record *records, int num_records)
+{
+    int total = 0;
+    int count = 0;
+    for (int i = 0; i < num_records; i++)
+    {
+        if (records[i].month == month && records[i].year == year)
+        {
+            total += records[i].rating;
+            count++;
         }
     }
-    // Write last line to output file
-    fprintf(fp_out, "%d,%s\n", current.Total_thumbsup, current.review);
+    return (double)total / count;
 }
 
-int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        printf("Usage: %s <input_file> <output_file>\n", argv[0]);
+// Função para comparar duas avaliações médias
+int compare_ratings(const void *a, const void *b)
+{
+    double x = *(double *)a;
+    double y = *(double *)b;
+    if (x < y)
+        return 1;
+    if (x > y)
+        return -1;
+    return 0;
+}
+
+int main()
+{
+    char line[MAX_LINE_LENGTH];
+    Record records[MAX_LINE_LENGTH];
+    int num_records = 0;
+
+    // Abrir o arquivo CSV para leitura
+    FILE *file = fopen("reviews.csv", "r");
+    if (file == NULL)
+    {
+        printf("Erro ao abrir o arquivo de dados");
         return 1;
     }
 
-    char *reviews = argv[1];
-    char *newReviews = argv[2];
+    printf("Lendo o arquivo de dados...\n");
+    // Ignorar o cabeçalho do arquivo
+    fgets(line, MAX_LINE_LENGTH, file);
 
-    // Open input file
-    FILE *fp_in = fopen("reviews.csv", "r");
-    if (fp_in == NULL) {
-        printf("Failed to open input file: %s\n", reviews);
+    printf("Processando os dados...\n");
+    // Ler as linhas restantes do arquivo
+    
+    while (fgets(line, MAX_LINE_LENGTH, file) != NULL)
+    {
+        Record record = read_record(line);
+        records[num_records++] = record;
+    }
+
+    fclose(file);
+
+    printf("Gerando o arquivo de saida...\n");
+
+    // Contar as avaliações por mês
+    int counts[NUM_MONTHS];
+    double ratings[NUM_MONTHS];
+    memset(counts, 0, sizeof(counts));
+    memset(ratings, 0, sizeof(ratings));
+    
+    for (int i = 0; i < num_records; i++)
+    {
+        int month = records[i].month - 1;
+        counts[month]++;
+        ratings[month] += records[i].rating;
+    }
+
+    // Calcular a avaliação média por mês
+    for (int i = 0; i < NUM_MONTHS; i++)
+    {
+        ratings[i] /= counts[i];
+    }
+
+    // Classificar as avaliações médias em ordem decrescente
+    qsort(ratings, NUM_MONTHS, sizeof(double), compare_ratings);
+
+    // Escrever os resultados em um arquivo CSV
+    file = fopen("averages.csv", "a");
+
+    if (file == NULL)
+    {
+        printf("Erro ao abrir o arquivo de saída");
         return 1;
     }
 
-    // Open output file
-    FILE *fp_out = fopen("newReviews.csv", "w");
-    if (fp_out == NULL) {
-        printf("Failed to open output file: %s\n", newReviews);
-        return 1;
+    fprintf(file, "Mês,Avaliação Média\n");
+    for (int i = 0; i < NUM_MONTHS; i++)
+    {
+        fprintf(file, "%d,%lf\n", i + 1, ratings[i]);
     }
-
-    // Sort reviews
-    bubbleSort(fp_in, fp_out);
-
-    // Close input and output files
-    fclose(fp_in);
-    fclose(fp_out);
+    
+    fclose(file);
 
     return 0;
 }
